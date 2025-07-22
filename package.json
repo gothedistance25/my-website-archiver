@@ -1,0 +1,11 @@
+{
+  "name": "daily-screenshot-archiver",
+  "version": "1.0.0",
+  "main": "scripts/screenshot.js",
+  "scripts": {
+    "archive": "node scripts/screenshot.js"
+  },
+  "dependencies": {
+    "puppeteer-core": "^22.15.0"
+  }
+}

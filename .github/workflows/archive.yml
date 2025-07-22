@@ -1,0 +1,38 @@
+name: Daily Screenshot Archive
+
+on:
+  schedule:
+    - cron: '0 7 * * *'  # Every day at 7am UTC
+  workflow_dispatch:
+
+jobs:
+  screenshot:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Install Chromium
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y chromium-browser
+
+      - name: Take screenshot
+        run: node scripts/screenshot.js
+
+      - name: Commit & push archive
+        run: |
+          git config user.name "github-actions"
+          git config user.email "github-actions@github.com"
+          git add archives/
+          git commit -m "Daily archive: $(date -I)" || echo "No changes"
+          git push
