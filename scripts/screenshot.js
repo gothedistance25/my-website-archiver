@@ -1,4 +1,4 @@
-const puppeteer = require('puppeteer-core');
+const puppeteer = require('puppeteer');
 const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
@@ -40,7 +40,6 @@ async function takeScreenshot(browser, pageConfig, date, archiveDir, hashLogPath
 (async () => {
   const browser = await puppeteer.launch({
     headless: 'new',
-    executablePath: CHROMIUM_PATH,
     args: ['--no-sandbox', '--disable-setuid-sandbox']
   });
 
