@@ -12,9 +12,18 @@ const IPCODE_IDX = 0;
 
 // ── HTTP helper ──────────────────────────────────────────────────────────────
 
-function fetchJson(url) {
+function fetchJson(url, hops = 0) {
   return new Promise((resolve, reject) => {
+    if (hops > 5) { reject(new Error(`Too many redirects for ${url}`)); return; }
     const req = https.get(url, { headers: { 'User-Agent': 'GitHubActionScreenshotBot/2.0' } }, (res) => {
+      if ([301, 302, 307, 308].includes(res.statusCode)) {
+        res.resume();
+        const loc = res.headers['location'];
+        if (!loc) { reject(new Error(`Redirect with no Location header from ${url}`)); return; }
+        const next = loc.startsWith('http') ? loc : new URL(loc, url).toString();
+        resolve(fetchJson(next, hops + 1));
+        return;
+      }
       if (res.statusCode !== 200) {
         reject(new Error(`HTTP ${res.statusCode} for ${url}`));
         res.resume();
