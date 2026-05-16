@@ -22,7 +22,10 @@ jobs:
           node-version: '24'
 
       - name: Install dependencies
-        run: npm install puppeteer
+        run: |
+          npm install puppeteer-core
+          sudo apt-get install -y chromium-browser
+        
 
       - name: Take screenshot
         run: node scripts/screenshot.js
