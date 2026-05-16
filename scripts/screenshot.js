@@ -198,7 +198,7 @@ async function takeSnapshot(browser, model, period, liveData, date, archiveDir, 
 
 (async () => {
   // Step 1: fetch active model list
-  const registry = await fetchJson(`${BASE_URL}/api/registry`);
+  const registry = await fetchJson(`${BASE_URL}/api/registry/`);
   const models = (registry.models || []);
   if (models.length === 0) {
     console.log('No active models in registry. Nothing to snapshot.');
