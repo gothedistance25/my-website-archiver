@@ -5,7 +5,7 @@ const crypto = require('crypto');
 const https = require('https');
 
 const CHROMIUM_PATH = '/usr/bin/chromium-browser';
-const BASE_URL = 'https://www.mystockalgo.com';
+const BASE_URL = 'https://mystockalgo.com';
 const BENCHMARK_TICKERS = ['DJI', 'S&P 500', 'Nasdaq'];
 // ipcodeIdx is always 0 per the frontend's registryModelToConfig
 const IPCODE_IDX = 0;
@@ -198,7 +198,7 @@ async function takeSnapshot(browser, model, period, liveData, date, archiveDir, 
 
 (async () => {
   // Step 1: fetch active model list
-  const registry = await fetchJson(`${BASE_URL}/api/registry/`);
+  const registry = await fetchJson(`${BASE_URL}/api/registry`);
   const models = (registry.models || []);
   if (models.length === 0) {
     console.log('No active models in registry. Nothing to snapshot.');
