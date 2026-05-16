@@ -164,9 +164,34 @@ function buildHtml(model, period, liveData, date) {
 </html>`;
 }
 
+// ── Directory helpers ─────────────────────────────────────────────────────────
+
+function dateSubdir(baseDir, date) {
+  const [year, month] = date.split('-');
+  const dir = path.join(baseDir, year, month);
+  fs.mkdirSync(dir, { recursive: true });
+  return dir;
+}
+
+// Move any flat files in archives/ root into archives/YYYY/MM/ based on their date suffix
+function reorganizeExisting(baseDir) {
+  const DATE_RE = /_(\d{4}-\d{2}-\d{2})\.(png|json)$/;
+  let moved = 0;
+  for (const name of fs.readdirSync(baseDir)) {
+    const fullPath = path.join(baseDir, name);
+    if (!fs.statSync(fullPath).isFile()) continue;
+    const m = name.match(DATE_RE);
+    if (!m) continue;
+    const dest = path.join(dateSubdir(baseDir, m[1]), name);
+    fs.renameSync(fullPath, dest);
+    moved++;
+  }
+  if (moved) console.log(`Reorganized ${moved} existing file(s) into date subdirectories.`);
+}
+
 // ── Snapshot one model ────────────────────────────────────────────────────────
 
-async function takeSnapshot(browser, model, period, liveData, date, archiveDir, hashLogPath) {
+async function takeSnapshot(browser, model, period, liveData, date, baseDir, hashLogPath) {
   const page = await browser.newPage();
   await page.setViewport({ width: 1000, height: 800 });
 
@@ -176,13 +201,13 @@ async function takeSnapshot(browser, model, period, liveData, date, archiveDir, 
   const slug = `model-${model.model_number}`;
   const pngName = `archive_${slug}_${date}.png`;
   const jsonName = `archive_${slug}_${date}.json`;
-  const pngPath = path.join(archiveDir, pngName);
-  const jsonPath = path.join(archiveDir, jsonName);
+  const dayDir = dateSubdir(baseDir, date);
+  const pngPath = path.join(dayDir, pngName);
+  const jsonPath = path.join(dayDir, jsonName);
 
   await page.screenshot({ path: pngPath, fullPage: true });
   await page.close();
 
-  // Raw snapshot JSON — independently auditable alongside the PNG
   const snapshot = { date, model, period, liveData };
   fs.writeFileSync(jsonPath, JSON.stringify(snapshot, null, 2));
 
@@ -219,15 +244,16 @@ async function takeSnapshot(browser, model, period, liveData, date, archiveDir, 
   });
 
   const date = new Date().toISOString().split('T')[0];
-  const archiveDir = path.join(__dirname, '..', 'archives');
-  const hashLogPath = path.join(archiveDir, 'hashlog.csv');
-  if (!fs.existsSync(archiveDir)) fs.mkdirSync(archiveDir, { recursive: true });
+  const baseDir = path.join(__dirname, '..', 'archives');
+  const hashLogPath = path.join(baseDir, 'hashlog.csv');
+  fs.mkdirSync(baseDir, { recursive: true });
+
+  reorganizeExisting(baseDir);
 
   let successCount = 0;
   for (const model of models) {
     const modelPeriods = livePeriods[`model_${model.model_number}`] || [];
 
-    // Prefer active period; fall back to latest completed period
     const period = modelPeriods.find((p) => p.status === 'active')
       ?? modelPeriods[modelPeriods.length - 1];
 
@@ -236,7 +262,6 @@ async function takeSnapshot(browser, model, period, liveData, date, archiveDir, 
       continue;
     }
 
-    // Step 3: fetch performance data for this period
     const dataUrl = `${BASE_URL}/static/s${model.strat_idx}_p${IPCODE_IDX}/live_performance_data_${period.start_date}.json`;
     const liveData = await fetchJson(dataUrl).catch((e) => {
       console.warn(`${model.display_name}: could not fetch performance data (${e.message}) — skipping.`);
@@ -244,7 +269,7 @@ async function takeSnapshot(browser, model, period, liveData, date, archiveDir, 
     });
     if (!liveData) continue;
 
-    await takeSnapshot(browser, model, period, liveData, date, archiveDir, hashLogPath);
+    await takeSnapshot(browser, model, period, liveData, date, baseDir, hashLogPath);
     successCount++;
   }
 
