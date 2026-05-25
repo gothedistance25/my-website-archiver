@@ -5,7 +5,7 @@ const crypto = require('crypto');
 const https = require('https');
 
 const CHROMIUM_PATH = '/usr/bin/chromium-browser';
-const BASE_URL = 'https://beluga3-production.up.railway.app';
+const BASE_URL = 'https://mystockalgo-backend.fly.dev';
 const BENCHMARK_TICKERS = ['DJI', 'S&P 500', 'Nasdaq'];
 // ipcodeIdx is always 0 per the frontend's registryModelToConfig
 const IPCODE_IDX = 0;
