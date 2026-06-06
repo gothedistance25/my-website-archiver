@@ -196,7 +196,7 @@ async function takeSnapshot(browser, model, period, liveData, date, baseDir, has
   await page.setViewport({ width: 1000, height: 800 });
 
   const html = buildHtml(model, period, liveData, date);
-  await page.setContent(html, { waitUntil: 'networkidle0' });
+  await page.setContent(html, { waitUntil: 'domcontentloaded' });
 
   const slug = `model-${model.model_number}`;
   const pngName = `archive_${slug}_${date}.png`;
