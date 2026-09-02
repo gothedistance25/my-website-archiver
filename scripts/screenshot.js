@@ -1,10 +1,9 @@
-const puppeteer = require('puppeteer-core');
+const puppeteer = require('puppeteer');
 const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
 const https = require('https');
 
-const CHROMIUM_PATH = '/usr/bin/chromium-browser';
 const BASE_URL = 'https://mystockalgo-backend.fly.dev';
 const BENCHMARK_TICKERS = ['DJI', 'S&P 500', 'Nasdaq'];
 // ipcodeIdx is always 0 per the frontend's registryModelToConfig
@@ -238,7 +237,6 @@ async function takeSnapshot(browser, model, period, liveData, date, baseDir, has
   });
 
   const browser = await puppeteer.launch({
-    executablePath: CHROMIUM_PATH,
     headless: 'new',
     args: ['--no-sandbox', '--disable-setuid-sandbox'],
   });
