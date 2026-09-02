@@ -22,9 +22,7 @@ jobs:
           node-version: '24'
 
       - name: Install dependencies
-        run: |
-          npm install puppeteer-core
-          sudo apt-get install -y chromium-browser
+        run: npm install puppeteer
         
 
       - name: Take screenshot
