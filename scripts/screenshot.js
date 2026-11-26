@@ -9,6 +9,9 @@ const BENCHMARK_TICKERS = ['DJI', 'S&P 500', 'Nasdaq'];
 // ipcodeIdx is always 0 per the frontend's registryModelToConfig
 const IPCODE_IDX = 0;
 
+// Registry status -> the tag the site shows next to the model name (lib/models.ts modelStatusLabel)
+const MODEL_STATUS_TAG = { upcoming: 'Coming soon', discontinued: 'Not currently offered' };
+
 // ── HTTP helper ──────────────────────────────────────────────────────────────
 
 function fetchJson(url, hops = 0) {
@@ -40,28 +43,33 @@ function fetchJson(url, hops = 0) {
 
 // ── HTML template ─────────────────────────────────────────────────────────────
 
+function esc(s) {
+  return String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+}
+
 function fmt$(v) {
   if (v == null) return 'N/A';
   const sign = v < 0 ? '-$' : '$';
   return sign + Math.abs(v).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
 
-function growthColor(v) {
+function signClass(v) {
   if (v == null) return '';
-  return v >= 0 ? 'color:#16a34a' : 'color:#dc2626';
+  return v >= 0 ? 'pos' : 'neg';
+}
+
+function lastValid(series) {
+  if (!Array.isArray(series)) return null;
+  for (let i = series.length - 1; i >= 0; i--) {
+    if (series[i] !== null && !isNaN(series[i])) return series[i];
+  }
+  return null;
 }
 
 function buildRows(period, liveData) {
   const allItems = ['Portfolio', ...period.tickers, ...BENCHMARK_TICKERS];
   return allItems.map((label) => {
-    const series = liveData[label];
-    let finalGrowth = null;
-    if (Array.isArray(series) && series.length > 0) {
-      for (let i = series.length - 1; i >= 0; i--) {
-        if (series[i] !== null && !isNaN(series[i])) { finalGrowth = series[i]; break; }
-      }
-    }
-
+    const finalGrowth = lastValid(liveData[label]);
     const isAggregate = label === 'Portfolio' || BENCHMARK_TICKERS.includes(label);
     const sv = isAggregate ? period.start_capital : period.start_capital / period.tickers.length;
     const fv = finalGrowth != null ? sv * (1 + finalGrowth) : null;
@@ -73,34 +81,58 @@ function buildRows(period, liveData) {
       startValue: sv,
       finalValue: fv,
       earnings: fv != null ? fv - sv : null,
+      // Portfolio is a composite: no single share price applies (same as the site's price view)
+      startPrice: label === 'Portfolio' ? null : (liveData[`${label}_startPrice`]?.[0] ?? null),
+      finalPrice: label === 'Portfolio' ? null : (liveData[`${label}_finalPrice`]?.[0] ?? null),
     };
   });
 }
 
-function buildHtml(model, period, liveData, date) {
-  const rows = buildRows(period, liveData);
-
+// Same rules as the site's PeriodSummaryHeader (LivePortfolioSection.tsx)
+function periodState(period) {
   const today = new Date();
+  today.setHours(0, 0, 0, 0);
   const startDt = new Date(period.start_date + 'T00:00:00');
   const endDt = new Date(period.end_date + 'T00:00:00');
   const msPerDay = 86400000;
   const totalDays = Math.round((endDt - startDt) / msPerDay);
-  const daysElapsed = Math.max(0, Math.min(Math.floor((today - startDt) / msPerDay), totalDays));
-  const statusLabel = period.status === 'active' ? 'Ongoing' : 'Completed';
-  const badgeStyle = period.status === 'active'
-    ? 'background:#dcfce7;color:#16a34a'
-    : 'background:#f1f5f9;color:#64748b';
+
+  if (period.status === 'completed' || today > endDt) {
+    return { statusLabel: 'Completed', totalDays, daysElapsed: totalDays, daysRemaining: 0 };
+  }
+  if (today < startDt) {
+    return { statusLabel: 'Not Started', totalDays, daysElapsed: 0, daysRemaining: totalDays };
+  }
+  const daysElapsed = Math.min(Math.floor((today - startDt) / msPerDay), totalDays);
+  return { statusLabel: 'Ongoing', totalDays, daysElapsed, daysRemaining: totalDays - daysElapsed };
+}
+
+function buildHtml(model, period, liveData, date) {
+  const rows = buildRows(period, liveData);
+  const { statusLabel, totalDays, daysElapsed, daysRemaining } = periodState(period);
+  const modelTag = MODEL_STATUS_TAG[model.status];
+  const lastDate = Array.isArray(liveData.date) && liveData.date.length ? liveData.date[liveData.date.length - 1] : null;
+
+  const stats = [
+    ['Start', period.start_date],
+    ['End', period.end_date],
+    ['Length', `${totalDays} days`],
+    ['Capital', `$${period.start_capital.toLocaleString('en-US')}`],
+    ['Portfolio', `${period.tickers.length} stocks`],
+    ['Elapsed', `${daysElapsed} days`],
+    ['Remaining', `${daysRemaining} days`],
+  ];
 
   const rowsHtml = rows.map((r) => {
-    const rowStyle = r.isPortfolio
-      ? 'background:#eef2ff;font-weight:700'
-      : r.isBenchmark ? 'color:#6b7280;font-style:italic' : '';
-    return `<tr style="${rowStyle}">
-      <td style="padding:7px 12px">${r.label}</td>
-      <td style="padding:7px 12px;text-align:right;font-family:monospace">${fmt$(r.startValue)}</td>
-      <td style="padding:7px 12px;text-align:right;font-family:monospace">${fmt$(r.finalValue)}</td>
-      <td style="padding:7px 12px;text-align:right;font-family:monospace;${growthColor(r.earnings)}">${fmt$(r.earnings)}</td>
-      <td style="padding:7px 12px;text-align:right;font-family:monospace;font-weight:600;${growthColor(r.growth)}">${r.growth != null ? r.growth.toFixed(1) + '%' : 'N/A'}</td>
+    const cls = r.isPortfolio ? 'portfolio' : r.isBenchmark ? 'bench' : '';
+    return `<tr class="${cls}">
+      <td>${esc(r.label)}</td>
+      <td class="num">${fmt$(r.startValue)}</td>
+      <td class="num">${fmt$(r.finalValue)}</td>
+      <td class="num ${signClass(r.earnings)}">${fmt$(r.earnings)}</td>
+      <td class="num">${fmt$(r.startPrice)}</td>
+      <td class="num">${fmt$(r.finalPrice)}</td>
+      <td class="num growth ${signClass(r.growth)}">${r.growth != null ? r.growth.toFixed(1) + '%' : 'N/A'}</td>
     </tr>`;
   }).join('');
 
@@ -108,42 +140,58 @@ function buildHtml(model, period, liveData, date) {
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<title>${model.display_name} — Live Portfolio Snapshot</title>
+<title>${esc(model.display_name)} — Live Portfolio Snapshot</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600&family=Geist+Mono:wght@400;500&family=Zilla+Slab:wght@500&display=block">
 <style>
+  :root{--surface:#fff;--ink:#12161c;--rule:#e2e5e9;--rule-strong:#c9ced5;--panel:#f3f5f7;--primary:#2c323b;--muted:#5d6570;--pos:#16a34a;--neg:#dc2626}
   *{box-sizing:border-box;margin:0;padding:0}
-  body{font-family:system-ui,sans-serif;background:#f8fafc;padding:24px}
-  .card{background:#fff;border-radius:12px;box-shadow:0 1px 6px rgba(0,0,0,.08);padding:28px;max-width:920px;margin:0 auto}
-  h1{font-size:22px;color:#1e293b;margin-bottom:4px}
-  .sub{color:#64748b;font-size:13px;margin-bottom:20px}
-  .badge{display:inline-block;padding:3px 12px;border-radius:999px;font-size:12px;font-weight:600}
-  .header-row{display:flex;justify-content:space-between;align-items:center;margin-bottom:6px}
-  .meta{display:grid;grid-template-columns:repeat(7,1fr);gap:12px;background:#f1f5f9;border-radius:8px;padding:16px;margin-bottom:24px}
-  .meta label{display:block;font-size:10px;color:#94a3b8;text-transform:uppercase;letter-spacing:.05em;margin-bottom:2px}
-  .meta span{font-size:14px;font-weight:600;color:#1e293b}
+  body{font-family:Geist,system-ui,sans-serif;background:var(--panel);color:var(--ink);padding:24px}
+  .mono,.num,.label,td.num{font-family:'Geist Mono',ui-monospace,monospace}
+  .card{background:var(--surface);border:1px solid var(--rule);padding:28px;max-width:960px;margin:0 auto}
+  .head{display:flex;justify-content:space-between;align-items:baseline;gap:16px}
+  h1{font-family:'Zilla Slab',Rockwell,Georgia,serif;font-weight:500;font-size:28px;line-height:1.15}
+  .tag{font-size:13px;color:var(--muted);margin-left:8px;font-family:Geist,system-ui,sans-serif}
+  .sub{color:var(--muted);font-size:13px;margin:6px 0 22px}
+  .label{display:block;font-size:10.5px;text-transform:uppercase;letter-spacing:.08em;color:var(--muted)}
+  .period-row{display:flex;justify-content:space-between;align-items:center;margin-bottom:14px}
+  .period-row h2{font-size:17px;font-weight:600}
+  .badge{border:1px solid var(--rule);color:var(--muted);padding:2px 10px;font-size:12px;font-weight:500}
+  .badge.on{border-color:var(--primary);color:var(--ink)}
+  .stats{display:grid;grid-template-columns:repeat(7,1fr);gap:12px 16px;margin-bottom:16px}
+  .stats .v{display:block;margin-top:2px;font-family:'Geist Mono',ui-monospace,monospace;font-size:13.5px;font-variant-numeric:tabular-nums}
+  .holdings{font-size:13px;margin-bottom:22px}
+  .holdings .label{display:inline;margin-right:8px}
+  .holdings .mono{color:var(--ink)}
   table{width:100%;border-collapse:collapse;font-size:13px}
-  th{text-align:left;padding:8px 12px;color:#64748b;font-weight:500;border-bottom:2px solid #e2e8f0;white-space:nowrap}
-  th:not(:first-child){text-align:right}
-  tr{border-bottom:1px solid #f1f5f9}
-  .holdings{font-size:12px;color:#64748b;margin-top:14px;line-height:1.5}
-  .footer{margin-top:18px;font-size:11px;color:#94a3b8;text-align:right;border-top:1px solid #f1f5f9;padding-top:10px}
+  th{padding:8px 10px;color:var(--muted);font-weight:500;border-bottom:1px solid var(--rule-strong);white-space:nowrap;text-align:right}
+  th:first-child{text-align:left}
+  td{padding:7px 10px;border-bottom:1px solid var(--rule)}
+  td.num{text-align:right;font-size:12.5px;font-variant-numeric:tabular-nums}
+  td.growth{font-weight:500;font-size:13px}
+  tr.portfolio{font-weight:700;background:var(--panel)}
+  tr.bench{color:var(--muted);font-style:italic}
+  .pos{color:var(--pos)} .neg{color:var(--neg)}
+  .note{margin-top:18px;border:1px solid var(--rule);background:var(--panel);padding:10px 14px;font-size:11.5px;line-height:1.55;color:var(--muted)}
+  .footer{margin-top:16px;font-size:11px;color:var(--muted);display:flex;justify-content:space-between;border-top:1px solid var(--rule);padding-top:10px}
 </style>
 </head>
 <body>
 <div class="card">
-  <div class="header-row">
-    <h1>${model.display_name}</h1>
-    <span class="badge" style="${badgeStyle}">${statusLabel}</span>
+  <div class="head">
+    <h1>${esc(model.display_name)}${modelTag ? `<span class="tag">(${modelTag})</span>` : ''}</h1>
+    <span class="label">Live portfolio audit snapshot</span>
   </div>
-  <p class="sub">Live Portfolio Audit Snapshot — ${date}</p>
-  <div class="meta">
-    <div><label>Period</label><span>${period.period_number}</span></div>
-    <div><label>Start</label><span>${period.start_date}</span></div>
-    <div><label>End</label><span>${period.end_date}</span></div>
-    <div><label>Length</label><span>${totalDays}d</span></div>
-    <div><label>Elapsed</label><span>${daysElapsed}d</span></div>
-    <div><label>Capital</label><span>$${period.start_capital.toLocaleString()}</span></div>
-    <div><label>Holdings</label><span>${period.tickers.length} stocks</span></div>
+  <p class="sub">Captured ${date}${lastDate ? ` &middot; data through ${esc(lastDate)}` : ''}</p>
+
+  <div class="period-row">
+    <h2>Period ${period.period_number}</h2>
+    <span class="badge${statusLabel === 'Ongoing' ? ' on' : ''}">${statusLabel}</span>
   </div>
+  <div class="stats">
+    ${stats.map(([k, v]) => `<div><span class="label">${k}</span><span class="v">${esc(v)}</span></div>`).join('')}
+  </div>
+  <p class="holdings"><span class="label">Holdings</span><span class="mono">${period.tickers.map(esc).join(', ')}</span></p>
+
   <table>
     <thead>
       <tr>
@@ -151,13 +199,19 @@ function buildHtml(model, period, liveData, date) {
         <th>Starting Value</th>
         <th>Final Value</th>
         <th>Earnings</th>
+        <th>Start Price</th>
+        <th>End Price</th>
         <th>Growth %</th>
       </tr>
     </thead>
     <tbody>${rowsHtml}</tbody>
   </table>
-  <p class="holdings"><strong>Holdings:</strong> ${period.tickers.join(', ')}</p>
-  <p class="footer">mystockalgo.com &nbsp;|&nbsp; Captured: ${new Date().toUTCString()}</p>
+
+  <p class="note">This is the portfolio the model selected for an entry date of ${esc(period.start_date)}. The model
+  generates a new portfolio for each entry date, so a signal purchased on a different date will likely contain
+  different stocks and may perform differently. Past performance does not guarantee future results.
+  Portfolio is a composite, so no single share price applies.</p>
+  <p class="footer"><span>mystockalgo.com</span><span class="mono">Captured: ${new Date().toUTCString()}</span></p>
 </div>
 </body>
 </html>`;
@@ -192,10 +246,15 @@ function reorganizeExisting(baseDir) {
 
 async function takeSnapshot(browser, model, period, liveData, date, baseDir, hashLogPath) {
   const page = await browser.newPage();
-  await page.setViewport({ width: 1000, height: 800 });
+  await page.setViewport({ width: 1040, height: 800 });
 
   const html = buildHtml(model, period, liveData, date);
   await page.setContent(html, { waitUntil: 'domcontentloaded' });
+  // Give the web fonts up to 5s; if Google Fonts is unreachable the fallbacks are used.
+  await Promise.race([
+    page.evaluate(() => document.fonts.ready.then(() => true)),
+    new Promise((r) => setTimeout(r, 5000)),
+  ]).catch(() => {});
 
   const slug = `model-${model.model_number}`;
   const pngName = `archive_${slug}_${date}.png`;
@@ -221,14 +280,15 @@ async function takeSnapshot(browser, model, period, liveData, date, baseDir, has
 // ── Main ──────────────────────────────────────────────────────────────────────
 
 (async () => {
-  // Step 1: fetch active model list
+  // Step 1: fetch the models the site shows. Each carries a status: active (on sale),
+  // upcoming (never sold yet) or discontinued (sold before, not offered now).
   const registry = await fetchJson(`${BASE_URL}/api/registry`);
   const models = (registry.models || []);
   if (models.length === 0) {
-    console.log('No active models in registry. Nothing to snapshot.');
+    console.log('No visible models in registry. Nothing to snapshot.');
     process.exit(0);
   }
-  console.log(`Registry: ${models.length} active model(s) — ${models.map((m) => m.display_name).join(', ')}`);
+  console.log(`Registry: ${models.length} visible model(s) — ${models.map((m) => `${m.display_name} [${m.status ?? 'active'}]`).join(', ')}`);
 
   // Step 2: fetch live_periods.json once (keyed by "model_N")
   const livePeriods = await fetchJson(`${BASE_URL}/static/live_periods.json`).catch((e) => {
