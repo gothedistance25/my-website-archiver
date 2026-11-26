@@ -141,7 +141,7 @@ function buildHtml(model, period, liveData, date) {
 <head>
 <meta charset="UTF-8">
 <title>${esc(model.display_name)} — Live Portfolio Snapshot</title>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600&family=Geist+Mono:wght@400;500&family=Zilla+Slab:wght@500&display=block">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600&family=Geist+Mono:wght@400;500&family=Zilla+Slab:wght@500&display=swap">
 <style>
   :root{--surface:#fff;--ink:#12161c;--rule:#e2e5e9;--rule-strong:#c9ced5;--panel:#f3f5f7;--primary:#2c323b;--muted:#5d6570;--pos:#16a34a;--neg:#dc2626}
   *{box-sizing:border-box;margin:0;padding:0}
@@ -249,11 +249,14 @@ async function takeSnapshot(browser, model, period, liveData, date, baseDir, has
   await page.setViewport({ width: 1040, height: 800 });
 
   const html = buildHtml(model, period, liveData, date);
-  await page.setContent(html, { waitUntil: 'domcontentloaded' });
-  // Give the web fonts up to 5s; if Google Fonts is unreachable the fallbacks are used.
+  // Wait for the font stylesheet to load (up to 15s); if it doesn't, carry on with fallback fonts.
+  await page.setContent(html, { waitUntil: 'load', timeout: 15000 }).catch(() => {
+    console.warn(`${model.display_name}: page load timed out, using fallback fonts.`);
+  });
+  // Then wait for the font files themselves (up to 10s). With display=swap, text is visible either way.
   await Promise.race([
     page.evaluate(() => document.fonts.ready.then(() => true)),
-    new Promise((r) => setTimeout(r, 5000)),
+    new Promise((r) => setTimeout(r, 10000)),
   ]).catch(() => {});
 
   const slug = `model-${model.model_number}`;
