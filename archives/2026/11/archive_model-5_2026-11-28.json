@@ -1,0 +1,172 @@
+{
+  "date": "2026-11-28",
+  "model": {
+    "description": "",
+    "display_name": "Model No. 5",
+    "live_period_days": 365,
+    "live_start_capital": 10000,
+    "live_start_date": "2026-11-25",
+    "live_tickers": [
+      "AMC",
+      "COTY",
+      "CLOV",
+      "WOOF",
+      "EVH"
+    ],
+    "model_key": "model_5",
+    "model_number": 5,
+    "status": "upcoming",
+    "strat_idx": 11312
+  },
+  "period": {
+    "period_number": 1,
+    "start_date": "2026-11-25",
+    "end_date": "2027-11-25",
+    "tickers": [
+      "AMC",
+      "COTY",
+      "CLOV",
+      "WOOF",
+      "EVH"
+    ],
+    "start_capital": 10000,
+    "status": "active"
+  },
+  "liveData": {
+    "date": [
+      "2026-11-25",
+      "2026-11-26",
+      "2026-11-27"
+    ],
+    "Portfolio": [
+      0,
+      0,
+      0.009374955420538678
+    ],
+    "AMC": [
+      0,
+      0,
+      -0.0031152647975076775
+    ],
+    "COTY": [
+      0,
+      0,
+      0.022352941176470464
+    ],
+    "CLOV": [
+      0,
+      0,
+      -0.0026595744680850686
+    ],
+    "WOOF": [
+      0,
+      0,
+      0.006000000000000005
+    ],
+    "EVH": [
+      0,
+      0,
+      0.024296675191815886
+    ],
+    "DJI": [
+      0,
+      0,
+      0.011062123689420611
+    ],
+    "S&P 500": [
+      0,
+      0,
+      0.013414026324069628
+    ],
+    "Nasdaq": [
+      0,
+      0,
+      0.017972890467993663
+    ],
+    "index": [
+      0,
+      1,
+      2
+    ],
+    "AMC_startPrice": [
+      3.21,
+      3.21,
+      3.21
+    ],
+    "AMC_finalPrice": [
+      3.2,
+      3.2,
+      3.2
+    ],
+    "COTY_startPrice": [
+      4.25,
+      4.25,
+      4.25
+    ],
+    "COTY_finalPrice": [
+      4.34,
+      4.34,
+      4.34
+    ],
+    "CLOV_startPrice": [
+      3.76,
+      3.76,
+      3.76
+    ],
+    "CLOV_finalPrice": [
+      3.75,
+      3.75,
+      3.75
+    ],
+    "WOOF_startPrice": [
+      2.5,
+      2.5,
+      2.5
+    ],
+    "WOOF_finalPrice": [
+      2.52,
+      2.52,
+      2.52
+    ],
+    "EVH_startPrice": [
+      3.91,
+      3.91,
+      3.91
+    ],
+    "EVH_finalPrice": [
+      4,
+      4,
+      4
+    ],
+    "DJI_startPrice": [
+      50182.95,
+      50182.95,
+      50182.95
+    ],
+    "DJI_finalPrice": [
+      50738.08,
+      50738.08,
+      50738.08
+    ],
+    "S&P 500_startPrice": [
+      7182.78,
+      7182.78,
+      7182.78
+    ],
+    "S&P 500_finalPrice": [
+      7279.13,
+      7279.13,
+      7279.13
+    ],
+    "Nasdaq_startPrice": [
+      23585.8,
+      23585.8,
+      23585.8
+    ],
+    "Nasdaq_finalPrice": [
+      24009.71,
+      24009.71,
+      24009.71
+    ]
+  }
+}
